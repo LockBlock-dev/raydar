@@ -6,21 +6,26 @@
 #define SCREEN_WIDTH 500
 #define SCREEN_HEIGHT 500
 
-void DrawSweepLineFade(RenderTexture2D *sweepTexture, float sweepWidth, Vector2 center, int radius)
+void DrawSweepLineFade(RenderTexture2D *sweepTexture, Vector2 center, int radius)
 {
     BeginTextureMode(*sweepTexture);
 
     ClearBackground(BLANK);
 
+    const float maxAngle = 180 * DEG2RAD;
+    const float angleStep = 0.001f; // Low value means no gap between lines
+
     // Draw a series of lines to fill the sector
-    for (float sweepAngle = -sweepWidth / 2; sweepAngle <= sweepWidth / 2; sweepAngle += 0.001f)
+    for (float sweepAngle = 0; sweepAngle <= maxAngle; sweepAngle += angleStep)
     {
         Vector2 sweepEnd = {
             center.x + radius * cos(sweepAngle),
             center.y + radius * sin(sweepAngle),
         };
 
-        DrawLineV(center, sweepEnd, GREEN);
+        float alpha = 1.0f - (sweepAngle / maxAngle);
+
+        DrawLineV(center, sweepEnd, Fade(GREEN, alpha));
     }
 
     EndTextureMode();
@@ -28,7 +33,6 @@ void DrawSweepLineFade(RenderTexture2D *sweepTexture, float sweepWidth, Vector2 
 
 /**
  * ToDo:
- * - use delta time for phosphor fade effect
  * - add planes
  * - (put all vars into a struct? at least find an elegant way to update things when screen is resized)
  */
@@ -57,9 +61,6 @@ int main(void)
     const float angularSpeed = RADAR_RPM * (2.0f * PI / 60.0f);
     float angle = 0.0f;
 
-    // Width of the radar sweep in radians (adjust for more/less overlap)
-    const float SWEEP_WIDTH = 0.1f;
-
     Vector2 center = {screenWidth / 2, screenHeight / 2};
     int radius = screenHeight / 2;
     int radiusStep = radius / RADAR_CIRCLES_COUNT;
@@ -68,11 +69,17 @@ int main(void)
     RenderTexture2D radarTexture = LoadRenderTexture(screenWidth, screenHeight);
     RenderTexture2D sweepTexture = LoadRenderTexture(screenWidth, screenHeight);
 
+    // Flip texture vertically
+    Rectangle sourceRec = {0, 0, (float)sweepTexture.texture.width, (float)-sweepTexture.texture.height};
+    Rectangle destRec = {center.x, center.y, (float)sweepTexture.texture.width, (float)sweepTexture.texture.height};
+    // Origin for the rotation
+    Vector2 origin = {sweepTexture.texture.width / 2.0f, sweepTexture.texture.height / 2.0f};
+
     SetWindowState(FLAG_WINDOW_RESIZABLE);
 
     SetTargetFPS(60);
 
-    DrawSweepLineFade(&sweepTexture, SWEEP_WIDTH, center, radius);
+    DrawSweepLineFade(&sweepTexture, center, radius);
 
     while (!WindowShouldClose())
     {
@@ -92,10 +99,11 @@ int main(void)
             UnloadRenderTexture(sweepTexture);
             sweepTexture = LoadRenderTexture(screenWidth, screenHeight);
 
-            DrawSweepLineFade(&sweepTexture, SWEEP_WIDTH, center, radius);
+            sourceRec = (Rectangle){0, 0, (float)sweepTexture.texture.width, (float)-sweepTexture.texture.height}; // Flip texture vertically
+            destRec = (Rectangle){center.x, center.y, (float)sweepTexture.texture.width, (float)sweepTexture.texture.height};
+            origin = (Vector2){sweepTexture.texture.width / 2.0f, sweepTexture.texture.height / 2.0f};
 
-            UnloadRenderTexture(radarTexture);
-            radarTexture = LoadRenderTexture(screenWidth, screenHeight);
+            DrawSweepLineFade(&sweepTexture, center, radius);
         }
 
         angle -= angularSpeed * deltaTime;
@@ -109,28 +117,14 @@ int main(void)
             center.y + radius * sin(-angle),
         };
 
-        //////////////////
-        // Texture mode //
-        //////////////////
-
         BeginTextureMode(radarTexture);
-
-        // Fade effect over the entire texture
-        DrawRectangle(0, 0, screenWidth, screenHeight, Fade(BLACK, 0.01f));
-
-        Rectangle sourceRec = {0, 0, (float)sweepTexture.texture.width, (float)-sweepTexture.texture.height}; // Flip texture vertically
-        Rectangle destRec = {center.x, center.y, (float)sweepTexture.texture.width, (float)sweepTexture.texture.height};
-        Vector2 origin = {sweepTexture.texture.width / 2.0f, sweepTexture.texture.height / 2.0f};
 
         DrawTexturePro(sweepTexture.texture, sourceRec, destRec, origin, angle * RAD2DEG, WHITE);
 
         EndTextureMode();
 
-        //////////////////
-        // Drawing mode //
-        //////////////////
-
         BeginDrawing();
+
         ClearBackground(BLACK);
 
         // // Draw sweep line + fade effect
