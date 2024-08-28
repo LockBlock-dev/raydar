@@ -21,7 +21,10 @@ endif()
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(${PROJECT_NAME} main.c)
+add_executable(
+  ${PROJECT_NAME}
+  src/main.c
+)
 
 target_link_libraries(${PROJECT_NAME} raylib)
 
